@@ -1,66 +1,141 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
   <title>Smart Clothes Control</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-    h1 { color: #333; }
-    button { font-size: 20px; margin: 10px; padding: 15px 30px; cursor: pointer; }
-    #status { margin-top: 20px; font-weight: bold; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #89f7fe, #66a6ff);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      color: #fff;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    button {
+      padding: 15px 35px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.3s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      font-weight: bold;
+      color: #fff;
+    }
+
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+    }
+
+    .btn-in { background-color: #4caf50; }
+    .btn-out { background-color: #f44336; }
+    .btn-stop { background-color: #ff9800; }
+    .btn-auto { background-color: #2196f3; }
+
+    .status-card {
+      background: rgba(255, 255, 255, 0.85);
+      padding: 20px 30px;
+      border-radius: 15px;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
+      min-width: 250px;
+    }
+
+    .status-card span {
+      font-weight: bold;
+      font-size: 1.2em;
+      color: #222;
+    }
   </style>
 </head>
 <body>
+  <h1>Smart Clothes Control</h1>
 
-<h1>Smart Clothes Control</h1>
+  <div class="controls">
+    <button class="btn-in" onclick="send('IN')">Move IN</button>
+    <button class="btn-out" onclick="send('OUT')">Move OUT</button>
+    <button class="btn-stop" onclick="send('STOP')">STOP</button>
+    <button class="btn-auto" onclick="send('AUTO')">Automatic Mode</button>
+  </div>
 
-<button onclick="sendCommand('IN')">Move IN</button>
-<button onclick="sendCommand('OUT')">Move OUT</button>
-<button onclick="sendCommand('STOP')">STOP</button>
+  <div class="status-card" id="status">
+    <span>Connecting to MQTT...</span>
+  </div>
 
-<div id="status">Connecting to MQTT...</div>
+  <div class="status-card" id="lastState">
+    <span>Loading clothes position...</span>
+  </div>
 
-<!-- Include Paho MQTT client library -->
-<script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
-<script>
-  // MQTT Broker settings
-  const broker = "test.mosquitto.org";
-  const port = 8081; // MQTT over WebSockets (secure)
-  const topic = "smart_clothes/cmd";
+  <script>
+    const client = mqtt.connect("wss://test.mosquitto.org:8081/mqtt");
+    const topic = "smart_clothes/cmd";
+    const thingSpeakURL = "https://api.thingspeak.com/channels/3067909/feeds.json?results=1";
 
-  // Create MQTT client
-  const client = new Paho.MQTT.Client(broker, port, "webclient_" + Math.floor(Math.random()*1000));
+    // MQTT connection
+    client.on('connect', () => {
+      document.getElementById("status").innerHTML = "<span>✅ Connected to MQTT broker</span>";
+      console.log("MQTT Connected");
+    });
 
-  client.onConnectionLost = (responseObject) => {
-    document.getElementById("status").innerText = "Connection lost!";
-    console.log("Connection lost:", responseObject.errorMessage);
-  };
+    client.on('error', (err) => {
+      document.getElementById("status").innerHTML = "<span>❌ MQTT connection error</span>";
+      console.error("MQTT Error:", err);
+    });
 
-  client.onMessageArrived = (message) => {
-    console.log("Message received:", message.payloadString);
-  };
-
-  // Connect
-  client.connect({
-    onSuccess: () => {
-      document.getElementById("status").innerText = "Connected to MQTT broker";
-      console.log("Connected to broker");
-    },
-    useSSL: true
-  });
-
-  function sendCommand(cmd) {
-    if (client.isConnected()) {
-      const message = new Paho.MQTT.Message(cmd);
-      message.destinationName = topic;
-      client.send(message);
-      document.getElementById("status").innerText = "Sent: " + cmd;
-      console.log("Sent:", cmd);
-    } else {
-      document.getElementById("status").innerText = "MQTT not connected!";
+    function send(command) {
+      if (client.connected) {
+        client.publish(topic, command);
+        document.getElementById("status").innerHTML = `<span>Sent command: ${command}</span>`;
+        console.log("Sent command:", command);
+      } else {
+        document.getElementById("status").innerHTML = "<span>MQTT not connected!</span>";
+      }
     }
-  }
-</script>
 
+    // Fetch last state from ThingSpeak and show friendly message
+    async function fetchLastState() {
+      try {
+        const response = await fetch(thingSpeakURL);
+        const data = await response.json();
+        if (data && data.feeds && data.feeds.length > 0) {
+          const value = data.feeds[0].field1;
+          let stateText = "Unknown";
+
+          if (value == "1") stateText = "Clothes are inside 🟢";
+          else if (value == "2") stateText = "Clothes are outside 🔴";
+          // STOP state is ignored
+
+          document.getElementById("lastState").innerHTML = `<span>${stateText}</span>`;
+        }
+      } catch (err) {
+        console.error("Error fetching ThingSpeak:", err);
+      }
+    }
+
+    fetchLastState();
+    setInterval(fetchLastState, 15000);
+  </script>
 </body>
 </html>
