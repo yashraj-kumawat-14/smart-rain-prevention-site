@@ -2,74 +2,65 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Rain Prevention Dashboard</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <title>Smart Clothes Control</title>
   <style>
     body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-    .status { font-size: 1.5em; margin: 20px; }
-    button {
-      padding: 15px 30px;
-      margin: 10px;
-      font-size: 1.2em;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-    }
-    .in { background: #4CAF50; color: white; }
-    .out { background: #2196F3; color: white; }
-    .stop { background: #f44336; color: white; }
+    h1 { color: #333; }
+    button { font-size: 20px; margin: 10px; padding: 15px 30px; cursor: pointer; }
+    #status { margin-top: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>🌧️ Smart Rain Prevention</h1>
-  <div class="status">Clothes Status: <span id="clothesState">Loading...</span></div>
 
-  <button class="in" onclick="sendCommand('in')">Take In</button>
-  <button class="out" onclick="sendCommand('out')">Take Out</button>
-  <button class="stop" onclick="sendCommand('stop')">Stop</button>
+<h1>Smart Clothes Control</h1>
 
-  <script>
-    // ---- MQTT CONFIG ----
-    const broker = "wss://test.mosquitto.org:8081/mqtt"; // Free broker over WebSocket
-    const topicCmd   = "rain/clothes/cmd";
+<button onclick="sendCommand('IN')">Move IN</button>
+<button onclick="sendCommand('OUT')">Move OUT</button>
+<button onclick="sendCommand('STOP')">STOP</button>
 
-    // ---- THINGSPEAK CONFIG ----
-    const channelID = "3067909";
-    const readAPIKey = "84NR74L69E7B7L0Z"; // leave empty "" if public channel
-    const fieldNum = 1; // use the field where ESP8266 updates status
+<div id="status">Connecting to MQTT...</div>
 
-    // ---- MQTT CONNECTION ----
-    const client = mqtt.connect(broker);
+<!-- Include Paho MQTT client library -->
+<script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
+<script>
+  // MQTT Broker settings
+  const broker = "test.mosquitto.org";
+  const port = 8081; // MQTT over WebSockets (secure)
+  const topic = "smart_clothes/cmd";
 
-    client.on("connect", () => {
-      console.log("Connected to MQTT broker");
-    });
+  // Create MQTT client
+  const client = new Paho.MQTT.Client(broker, port, "webclient_" + Math.floor(Math.random()*1000));
 
-    function sendCommand(cmd) {
-      client.publish(topicCmd, cmd);
-      console.log("Sent command:", cmd);
+  client.onConnectionLost = (responseObject) => {
+    document.getElementById("status").innerText = "Connection lost!";
+    console.log("Connection lost:", responseObject.errorMessage);
+  };
+
+  client.onMessageArrived = (message) => {
+    console.log("Message received:", message.payloadString);
+  };
+
+  // Connect
+  client.connect({
+    onSuccess: () => {
+      document.getElementById("status").innerText = "Connected to MQTT broker";
+      console.log("Connected to broker");
+    },
+    useSSL: true
+  });
+
+  function sendCommand(cmd) {
+    if (client.isConnected()) {
+      const message = new Paho.MQTT.Message(cmd);
+      message.destinationName = topic;
+      client.send(message);
+      document.getElementById("status").innerText = "Sent: " + cmd;
+      console.log("Sent:", cmd);
+    } else {
+      document.getElementById("status").innerText = "MQTT not connected!";
     }
+  }
+</script>
 
-    // ---- THINGSPEAK FETCH ----
-    async function fetchThingSpeakStatus() {
-      try {
-        let url = `https://api.thingspeak.com/channels/${channelID}/fields/${fieldNum}/last.json`;
-        if (readAPIKey) url += `?api_key=${readAPIKey}`;
-
-        const response = await fetch(url);
-        const data = await response.json();
-        const state = data.field1 || "Unknown";
-
-        document.getElementById("clothesState").textContent = state;
-      } catch (error) {
-        console.error("ThingSpeak fetch error:", error);
-        document.getElementById("clothesState").textContent = "Error";
-      }
-    }
-
-    // Fetch status every 15 seconds
-    fetchThingSpeakStatus();
-    setInterval(fetchThingSpeakStatus, 15000);
-  </script>
 </body>
 </html>
