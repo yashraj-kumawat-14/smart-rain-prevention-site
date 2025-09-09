@@ -22,7 +22,7 @@
 </head>
 <body>
   <h1>🌧️ Smart Rain Prevention</h1>
-  <div class="status">Clothes Status: <span id="clothesState">Unknown</span></div>
+  <div class="status">Clothes Status: <span id="clothesState">Loading...</span></div>
 
   <button class="in" onclick="sendCommand('in')">Take In</button>
   <button class="out" onclick="sendCommand('out')">Take Out</button>
@@ -31,27 +31,45 @@
   <script>
     // ---- MQTT CONFIG ----
     const broker = "wss://test.mosquitto.org:8081/mqtt"; // Free broker over WebSocket
-    const topicState = "rain/clothes/state";
     const topicCmd   = "rain/clothes/cmd";
 
-    // Connect to broker
+    // ---- THINGSPEAK CONFIG ----
+    const channelID = "3067909";
+    const readAPIKey = "84NR74L69E7B7L0Z"; // leave empty "" if public channel
+    const fieldNum = 1; // use the field where ESP8266 updates status
+
+    // ---- MQTT CONNECTION ----
     const client = mqtt.connect(broker);
 
     client.on("connect", () => {
       console.log("Connected to MQTT broker");
-      client.subscribe(topicState);
-    });
-
-    client.on("message", (topic, message) => {
-      if (topic === topicState) {
-        document.getElementById("clothesState").textContent = message.toString();
-      }
     });
 
     function sendCommand(cmd) {
       client.publish(topicCmd, cmd);
       console.log("Sent command:", cmd);
     }
+
+    // ---- THINGSPEAK FETCH ----
+    async function fetchThingSpeakStatus() {
+      try {
+        let url = `https://api.thingspeak.com/channels/${channelID}/fields/${fieldNum}/last.json`;
+        if (readAPIKey) url += `?api_key=${readAPIKey}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+        const state = data.field1 || "Unknown";
+
+        document.getElementById("clothesState").textContent = state;
+      } catch (error) {
+        console.error("ThingSpeak fetch error:", error);
+        document.getElementById("clothesState").textContent = "Error";
+      }
+    }
+
+    // Fetch status every 15 seconds
+    fetchThingSpeakStatus();
+    setInterval(fetchThingSpeakStatus, 15000);
   </script>
 </body>
 </html>
