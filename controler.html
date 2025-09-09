@@ -48,6 +48,7 @@
       box-shadow: 0 6px 10px rgba(0,0,0,0.15);
     }
 
+    .btn-home { background-color: #9c27b0; } /* Home button */
     .btn-in { background-color: #4caf50; }
     .btn-out { background-color: #f44336; }
     .btn-stop { background-color: #ff9800; }
@@ -74,6 +75,7 @@
   <h1>Smart Clothes Control</h1>
 
   <div class="controls">
+    <button class="btn-home" onclick="goHome()">User Manual</button>
     <button class="btn-in" onclick="send('IN')">Move IN</button>
     <button class="btn-out" onclick="send('OUT')">Move OUT</button>
     <button class="btn-stop" onclick="send('STOP')">STOP</button>
@@ -89,6 +91,11 @@
   </div>
 
   <script>
+    // Navigate to home page
+    function goHome() {
+      window.location.href = './index.html';
+    }
+
     const client = mqtt.connect("wss://test.mosquitto.org:8081/mqtt");
     const topic = "smart_clothes/cmd";
     const thingSpeakURL = "https://api.thingspeak.com/channels/3067909/feeds.json?results=1";
