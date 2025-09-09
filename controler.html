@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Rain Prevention Dashboard</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    .status { font-size: 1.5em; margin: 20px; }
+    button {
+      padding: 15px 30px;
+      margin: 10px;
+      font-size: 1.2em;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+    }
+    .in { background: #4CAF50; color: white; }
+    .out { background: #2196F3; color: white; }
+    .stop { background: #f44336; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🌧️ Smart Rain Prevention</h1>
+  <div class="status">Clothes Status: <span id="clothesState">Unknown</span></div>
+
+  <button class="in" onclick="sendCommand('in')">Take In</button>
+  <button class="out" onclick="sendCommand('out')">Take Out</button>
+  <button class="stop" onclick="sendCommand('stop')">Stop</button>
+
+  <script>
+    // ---- MQTT CONFIG ----
+    const broker = "wss://test.mosquitto.org:8081/mqtt"; // Free broker over WebSocket
+    const topicState = "rain/clothes/state";
+    const topicCmd   = "rain/clothes/cmd";
+
+    // Connect to broker
+    const client = mqtt.connect(broker);
+
+    client.on("connect", () => {
+      console.log("Connected to MQTT broker");
+      client.subscribe(topicState);
+    });
+
+    client.on("message", (topic, message) => {
+      if (topic === topicState) {
+        document.getElementById("clothesState").textContent = message.toString();
+      }
+    });
+
+    function sendCommand(cmd) {
+      client.publish(topicCmd, cmd);
+      console.log("Sent command:", cmd);
+    }
+  </script>
+</body>
+</html>
